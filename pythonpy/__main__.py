@@ -22,13 +22,14 @@ except (ImportError, ValueError, SystemError):
 __version_info__ = '''Pythonpy %s
 Python %s''' % (__version__, sys.version.split(' ')[0])
 
+user_env = {}
 
 def import_matches(query, prefix=''):
     matches = set(re.findall(r"(%s[a-zA-Z_][a-zA-Z0-9_]*)\.?" % prefix, query))
     for module_name in matches:
         try:
             module = __import__(module_name)
-            globals()[module_name] = module
+            user_env[module_name] = module
             import_matches(query, prefix='%s.' % module_name)
         except ImportError as e:
             pass
@@ -134,11 +135,11 @@ try:
     lazy_imports(args.expression, args.pre_cmd, args.post_cmd)
 
     if args.pre_cmd:
-        exec(args.pre_cmd)
+        exec(args.pre_cmd, user_env)
 
     def safe_eval(text, x):
         try:
-            return eval(text)
+            return eval(text, user_env)
         except:
             return None
 
@@ -146,17 +147,17 @@ try:
         if args.ignore_exceptions:
             result = (safe_eval(args.expression, x) for x in stdin)
         else:
-            result = (eval(args.expression) for x in stdin)
+            result = (eval(args.expression, user_env) for x in stdin)
     elif args.filter_result:
         if args.ignore_exceptions:
             result = (x for x in stdin if safe_eval(args.expression, x))
         else:
-            result = (x for x in stdin if eval(args.expression))
+            result = (x for x in stdin if eval(args.expression, user_env))
     elif args.list_of_stdin:
         l = list(stdin)
-        result = eval(args.expression)
+        result = eval(args.expression, user_env)
     else:
-        result = eval(args.expression)
+        result = eval(args.expression, user_env)
 
     def format(output):
         if output is None:
@@ -186,7 +187,7 @@ try:
                 print(formatted.encode('utf-8'))
 
     if args.post_cmd:
-        exec(args.post_cmd)
+        exec(args.post_cmd, user_env)
 except Exception as ex:
     import traceback
     sys.stderr.write(traceback.format_exc())
