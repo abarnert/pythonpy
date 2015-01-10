@@ -11,6 +11,7 @@ from signal import signal, SIGPIPE, SIG_DFL
 signal(SIGPIPE,SIG_DFL)
 
 import argparse
+import ast
 import json
 import re
 from collections import Iterable
@@ -68,6 +69,9 @@ parser.add_argument('-l', dest='list_of_stdin', action='store_const',
 parser.add_argument('-c', dest='pre_cmd', help='run code before expression')
 parser.add_argument('-C', dest='post_cmd', help='run code after expression')
 parser.add_argument('-V', '--version', action='version', version=__version_info__, help='version info')
+parser.add_argument('-t', '--literal', dest='literal', action='store_const',
+                    const=True, default=False,
+                    help='evaluate each row as a Python literal with -x/-fx')
 parser.add_argument('--ji', '--json_input',
                     dest='json_input', action='store_const',
                     const=True, default=False,
@@ -104,9 +108,18 @@ try:
                     raise ex
         stdin = (loads(x) for x in sys.stdin)
     elif args.input_delimiter:
-        stdin = (re.split(args.input_delimiter, x.rstrip()) for x in sys.stdin)
+        if args.literal:
+            stdin = ([ast.literal_eval(y)
+                      for y in re.split(args.input_delimiter, x.rstrip())]
+                     for x in sys.stdin)
+        else:
+            stdin = (re.split(args.input_delimiter, x.rstrip())
+                     for x in sys.stdin)
     else:
-        stdin = (x.rstrip() for x in sys.stdin)
+        if args.literal:
+            stdin = (ast.literal_eval(x.rstrip()) for x in sys.stdin)
+        else:
+            stdin = (x.rstrip() for x in sys.stdin)
 
     if args.expression:
         args.expression = args.expression.replace("`", "'")
