@@ -15,6 +15,14 @@ import json
 import re
 from collections import Iterable
 
+# 2.7 and 3.1-3.2 have importlib.import_module, but it
+# doesn't automatically import parent packages, which
+# makes it no better than __import__ for our purposes.
+if sys.version_info >= (3, 3):
+    import importlib
+else:
+    importlib = None
+
 try:
     from . import __version__
 except (ImportError, ValueError, SystemError):
@@ -67,6 +75,9 @@ parser.add_argument('-l', dest='list_of_stdin', action='store_const',
                     help='treat list of stdin as l')
 parser.add_argument('-c', dest='pre_cmd', help='run code before expression')
 parser.add_argument('-C', dest='post_cmd', help='run code after expression')
+parser.add_argument('--module', '--modules', '-m',
+                    dest='modules', action='append',
+                    help='from MODULE import * before expression')
 parser.add_argument('-V', '--version', action='version', version=__version_info__, help='version info')
 parser.add_argument('--ji', '--json_input',
                     dest='json_input', action='store_const',
@@ -87,6 +98,24 @@ parser.add_argument('--i', '--ignore_exceptions',
 
 try:
     args = parser.parse_args()
+
+    for mod in args.modules:
+        for mod in mod.split(','):
+            if not importlib:
+                if '.' in mod:
+                    sys.stderr.write('Sorry, --module cannot handle '
+                                     'subpackages before Python 3.3.')
+                    sys.exit(2)
+                module = __import__(mod)
+            else:
+                module = importlib.import_module(mod)
+            try:
+                names = getattr(module, '__all__')
+            except AttributeError:
+                names = (name for name in dir(module)
+                         if not name.startswith('_'))
+            d = {name: getattr(module, name) for name in names}
+            globals().update(d)
 
     if args.json_input:
         def loads(str_):
